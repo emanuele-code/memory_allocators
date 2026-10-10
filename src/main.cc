@@ -1,59 +1,85 @@
-#include <cstddef>
-#include <cstdint> // std::unitptr_t
+#include "arena.h"
 
-
-class Arena {          
-    private:
-       
-        std::byte*  buffer_{nullptr};  // continuous memory allocated
-        std::size_t capacity_{0};      // buffer capacity
-        std::size_t offset_{0};        // arena offset 
-
-        /* byte alignment to avoid cache line split
-         * This function rounds the capacity up to the next multiple of 8 */
-        static std::size_t align_up(std::size_t size, std::size_t alignment) {          
-            return ( size + (aligment-1) ) & ~(alignment - 1);
-        }
-
-
-    public:
-       
-        Arena(std::size_t req_capacity) : capacity_(req_capacity) {          
-            capacity_ = align_up(req_capacity, alignof(std::max_align_t));   // align to CPU max multiple (8 or 16 byte)
-            
-            buffer_ = new std::byte[capacity_];                                                                               
-            offset_ = 0;
-        }
-
-        
-        /* +-----+-----+------+
-         *  busy | pad | free 
-         * +-----+-----+------+
-         *             ^ offset */
-        void* allocate(std::size_t size, std::size_t alignment = alignof(std::max_align_t)) {         
-            std::byte*    current_ptr  = buffer_ + offset_;
-
-            // convert the ptr in an int to make bitwise operation possible and align it 
-            std::uintptr_t current_addr = reinterpret_cast<std::uniptr_t>(current_ptr);
-            std::uintptr_t aligned_addr = align_up(current_addr, alignment);
-
-            // convert back to raw bytes the aligned ptr
-            std::byte* aligned_ptr = reinterpret_cast<std::byte*>(aligned_addr);
-            
-            std::size_t next_offset = static_cast<std::size_t>(aligned_ptr- buffer_) + size;
-    
-            if(next_offset > capacity_) return nullptr;
-
-            offset_ = next_offset;
-            return static_cast<void*>(aligned_ptr);
-        }
-
-};
+#include <iostream>
+#include <cstdint>
+#include <cassert>
 
 
 
 
+int main() {
+    std::cout << "=== ARENA ALLOCATOR TEST SUITE ===\n\n";
 
+    Arena arena(64);
+    std::cout << "Arena capacity: " << arena.capacity() << " bytes\n\n";
 
+    // TEST 1: Allocate 5 chars (5 bytes, alignment 1)
+    void* p_chars = arena.allocate(5, 1);
+    std::uintptr_t addr_chars = reinterpret_cast<std::uintptr_t>(p_chars);
 
+    std::cout << "[TEST 1] Allocated 5 chars:\n";
+    std::cout << "  Address: 0x" << std::hex << addr_chars << std::dec << "\n";
+    std::cout << "  Used offset: " << arena.used_byte() << " bytes\n";
+    assert(p_chars != nullptr);
+    assert(arena.used_byte() == 5);
 
+    // TEST 2: Allocate 1 int (4 bytes, alignment 4)
+    // 5 bytes currently used -> requires 3 bytes of padding to reach multiple of 4
+    void* p_int = arena.allocate(sizeof(int), alignof(int));
+    std::uintptr_t addr_int = reinterpret_cast<std::uintptr_t>(p_int);
+
+    std::cout << "\n[TEST 2] Allocated 1 int (alignment 4):\n";
+    std::cout << "  Address: 0x" << std::hex << addr_int << std::dec << "\n";
+    std::cout << "  Used offset: " << arena.used_byte() << " bytes (includes 3B padding)\n";
+    assert(p_int != nullptr);
+    assert(addr_int % alignof(int) == 0);
+    assert(arena.used_byte() == 12); // 5 + 3 (pad) + 4 = 12
+
+    // TEST 3: Allocate 1 double (8 bytes, alignment 8)
+    // Offset is at 12 (0x0C) -> requires 4 bytes of padding to reach multiple of 8 (0x10)
+    void* p_double = arena.allocate(sizeof(double), alignof(double));
+    std::uintptr_t addr_double = reinterpret_cast<std::uintptr_t>(p_double);
+
+    std::cout << "\n[TEST 3] Allocated 1 double (alignment 8):\n";
+    std::cout << "  Address: 0x" << std::hex << addr_double << std::dec << "\n";
+    std::cout << "  Used offset: " << arena.used_byte() << " bytes (includes 4B padding)\n";
+    assert(p_double != nullptr);
+    assert(addr_double % alignof(double) == 0);
+    assert(arena.used_byte() == 24); // 12 + 4 (pad) + 8 = 24
+
+    // TEST 4: Write and read data verification
+    int* my_int = static_cast<int*>(p_int);
+    *my_int = 123456;
+
+    double* my_double = static_cast<double*>(p_double);
+    *my_double = 3.1415926535;
+
+    std::cout << "\n[TEST 4] Memory write/read verification:\n";
+    std::cout << "  int value:    " << *my_int << "\n";
+    std::cout << "  double value: " << *my_double << "\n";
+    assert(*my_int == 123456);
+    assert(*my_double == 3.1415926535);
+
+    // TEST 5: Out of bounds allocation (Overflow)
+    void* overflow_ptr = arena.allocate(100, 1);
+    std::cout << "\n[TEST 5] Out-of-bounds allocation test:\n";
+    std::cout << "  Result: " << (overflow_ptr == nullptr ? "nullptr (SUCCESS)" : "FAILED") << "\n";
+    assert(overflow_ptr == nullptr);
+
+    // TEST 6: O(1) Reset
+    arena.reset();
+    std::cout << "\n[TEST 6] arena.reset() invoked:\n";
+    std::cout << "  Offset post-reset: " << arena.used_byte() << " bytes\n";
+    assert(arena.used_byte() == 0);
+
+    // Reallocate from the beginning
+    void* p_new = arena.allocate(sizeof(int), alignof(int));
+    std::cout << "  New allocation post-reset at: 0x"
+              << std::hex << reinterpret_cast<std::uintptr_t>(p_new) << std::dec << "\n";
+
+    assert(p_new != nullptr);
+    assert(arena.used_byte() == sizeof(int));
+
+    std::cout << "\n>>> ALL ASSERTIONS PASSED SUCCESSFULLY! <<<\n";
+    return 0;
+}

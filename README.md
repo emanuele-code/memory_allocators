@@ -13,8 +13,6 @@ A modular C++20 memory arena allocator designed for fast, cache-friendly contigu
 ```
 
 ## Use Cases
-
-* **Game Engines & Real-Time Systems:** Frame-based or temporary scratchpad allocations where individual deallocations cause unacceptable heap fragmentation.
 * **Batch Processing:** Allocating high volumes of small objects that share the same lifecycle and can be freed simultaneously.
 * **Deterministic Performance:** Replacing general-purpose `malloc`/`new` calls to avoid lock contention and non-deterministic allocation latency.
 

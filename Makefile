@@ -1,8 +1,8 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -Wall -Wextra -O2
+CXXFLAGS = -std=c++20 -Wall -Wextra -O2 -Iincludes
 TARGET = arena
 
-SRCS = arena.cc main.cc
+SRCS = src/arena.cc src/main.cc
 OBJS = $(SRCS:.cc=.o)
 
 
@@ -16,7 +16,7 @@ $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET)
 
 
-%.o: %.cc arena.h
+src/%.o: src/%.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 

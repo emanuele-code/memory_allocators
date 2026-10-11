@@ -3,7 +3,7 @@
 Arena::Arena(std::size_t req_capacity) {
     capacity_ = static_cast<std::size_t>( align_up(req_capacity, alignof(std::max_align_t)) );
    
-     buffer_ = new std::byte[capacity_];
+    buffer_ = new std::byte[capacity_];
     offset_ = 0;
 }
 
@@ -42,3 +42,4 @@ std::size_t Arena::used_byte() const noexcept {
 std::size_t Arena::capacity() const noexcept {
     return capacity_;
 }
+

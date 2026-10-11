@@ -23,10 +23,24 @@ public:
     Arena& operator=(const Arena&) = delete;
 
     [[nodiscard]] void* allocate(std::size_t size, std::size_t alignment = alignof(std::max_align_t));
+    [[nodiscard]] void* allocate();
+
     void reset() noexcept;
 
     [[nodiscard]] std::size_t used_byte() const noexcept;
     [[nodiscard]] std::size_t capacity()  const noexcept;
+
+    template <typename T>
+    [[nodiscard]] T* allocate();
+
 };
+
+
+template <typename T>
+T* Arena::allocate() {          
+    void* mem = allocate(sizeof(T), alignof(T));
+    return static_cast<T*>(mem);
+}
+
 
 #endif // ARENA_H
